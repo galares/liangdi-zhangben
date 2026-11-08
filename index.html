@@ -861,6 +861,9 @@ $('#fileIn').onchange=async e=>{
       if(j.merge){
         // 合并包：只往里加账户、分类和流水，不动现有数据；同 id 的跳过，可以重复导
         const snapshot=JSON.stringify(S); // 取消时回滚
+        // 账户设置包：给现有账户改名、改图标，标记已完成初始设置
+        if(j.rename)for(const [id,v] of Object.entries(j.rename)){const x=accById(id);if(x){if(v.name)x.name=v.name;if(v.icon)x.icon=v.icon}}
+        if(j.welcomed)S.settings.welcomed=true;
         // 银行账户第一次导入：问一次合到哪个现有账户，之后记住
         S.settings.accMap=S.settings.accMap||{};
         for(const a of j.accounts){
