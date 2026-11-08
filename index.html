@@ -357,6 +357,7 @@ function txRow(t){
   if(t.note&&c)sub.push(c.name);
   if(t.type==='tr'){const b=accById(t.toAcc);sub.push((a?a.name:'?')+' → '+(b?b.name:'?'))}else sub.push(a?a.name:'已删账户');
   if(t.oCur)sub.push('原价 '+fmt(t.oAmt,t.oCur));
+  if(t.hand&&Math.abs(t.hand.amt-t.amt)>=0.005)sub.push('手记 '+fmt(t.hand.amt,t.cur));
   if(t.src&&t.src!=='manual')sub.push('导入');
   let right=sign+fmt(Math.abs(t.amt),t.cur);
   let small='';
@@ -873,20 +874,34 @@ $('#fileIn').onchange=async e=>{
         // 隐藏的历史账户（比如小米记账历史）里的同一笔也算：挪到银行账户，保留原来的分类和备注
         const used=new Set();let matched=0,fromHist=0;
         const isHist=x=>{const a=accById(x.acc);return a&&a.archived&&x.src&&x.src.startsWith('import:')};
-        add=add.filter(t=>{
-          if(!t.dedupe)return true;
-          const near=x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&x.cur===t.cur&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=4;
-          let m=S.tx.find(x=>near(x)&&x.acc===t.acc&&(!x.src||x.src==='manual'));
-          if(!m)m=S.tx.find(x=>near(x)&&isHist(x)&&(new Date(t.date)-new Date(x.date))/864e5>=-1);
-          if(!m)return true;
+        let fuzzyN=0,fixedAmt=0;
+        const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
+        const take=(m,t,fuzzy)=>{
           used.add(m.id);m.ext=t.id;matched++;
+          if(fuzzy){fuzzyN++;if(Math.abs(m.amt-t.amt)>=0.005){fixedAmt++;m.hand={amt:m.amt,date:m.date};}} // 手记和银行有出入：以银行为准，原手记数字留着
           if(m.acc!==t.acc){
             const old=accById(m.acc);old.init=round2((+old.init||0)+(m.type==='exp'?-m.amt:m.amt)); // 历史账户余额保持不变
             m.acc=t.acc;m.cur=t.cur;fromHist++;
           }
-          return false;
+          if(fuzzy){m.amt=t.amt;m.eur=t.eur!=null?t.eur:m.eur;m.date=t.date;if(!m.note)m.note=t.note}
+        };
+        const cand=(t,exact)=>S.tx.filter(x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&x.cur===t.cur&&(x.acc===t.acc?(!x.src||x.src==='manual'||isHist(x)):isHist(x))&&
+          (exact?(Math.abs(x.amt-t.amt)<0.005&&days(x.date,t.date)<=4):((days(x.date,t.date)<=3&&Math.abs(x.amt-t.amt)<=Math.max(1,0.05*t.amt))||(days(x.date,t.date)<=7&&Math.abs(x.amt-t.amt)<=Math.max(0.3,0.01*t.amt)))));
+        const pend=[];
+        add=add.filter(t=>{
+          if(!t.dedupe)return true;
+          const c=cand(t,true).sort((a,b)=>days(a.date,t.date)-days(b.date,t.date));
+          if(c.length){take(c[0],t,false);return false}
+          pend.push(t);return true;
         });
-        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你记过的对上了（不重复加${fromHist?`，其中 ${fromHist} 笔来自历史记录`:''}）`:''}。确定导入？`)){S=JSON.parse(snapshot);return}
+        // 第二轮：金额差一点（≤€1 或 5%）、日期差几天（≤7 天）的，当成同一笔，以银行为准
+        add=add.filter(t=>{
+          if(!pend.includes(t))return true;
+          const c=cand(t,false).sort((a,b)=>(Math.abs(a.amt-t.amt)/Math.max(t.amt,1)+days(a.date,t.date)*0.02)-(Math.abs(b.amt-t.amt)/Math.max(t.amt,1)+days(b.date,t.date)*0.02));
+          if(c.length){take(c[0],t,true);return false}
+          return true;
+        });
+        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你记过的对上了（不重复加${fuzzyN?`；其中 ${fuzzyN} 笔是金额或日期有小出入、按近似对上的，${fixedAmt} 笔金额已改成银行实际扣的`:''}）`:''}。确定导入？`)){S=JSON.parse(snapshot);return}
         for(const a of j.accounts)if(!accById(a.id))S.accounts.push(a);
         for(const ty of ['exp','inc'])for(const c of (j.cats&&j.cats[ty])||[])if(!catById(ty,c.id))S.cats[ty].splice(Math.max(0,S.cats[ty].length-1),0,c);
         for(const t of add){
