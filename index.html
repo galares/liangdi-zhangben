@@ -875,7 +875,7 @@ $('#fileIn').onchange=async e=>{
         const isHist=x=>{const a=accById(x.acc);return a&&a.archived&&x.src&&x.src.startsWith('import:')};
         add=add.filter(t=>{
           if(!t.dedupe)return true;
-          const near=x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=4;
+          const near=x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&x.cur===t.cur&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=4;
           let m=S.tx.find(x=>near(x)&&x.acc===t.acc&&(!x.src||x.src==='manual'));
           if(!m)m=S.tx.find(x=>near(x)&&isHist(x)&&(new Date(t.date)-new Date(x.date))/864e5>=-1);
           if(!m)return true;
