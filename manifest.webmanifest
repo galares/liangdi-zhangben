@@ -1,0 +1,23 @@
+{
+  "name": "两地账本",
+  "short_name": "两地账本",
+  "description": "欧元和人民币一起记的个人记账本",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f5f2",
+  "theme_color": "#1f7a5a",
+  "lang": "zh-CN",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "记一笔支出", "url": "./?add=exp", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]},
+    {"name": "记一笔收入", "url": "./?add=inc", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]},
+    {"name": "转账 / 换汇", "url": "./?add=tr", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]}
+  ],
+  "share_target": {"action": "./", "method": "GET", "params": {"text": "text", "title": "title"}}
+}
