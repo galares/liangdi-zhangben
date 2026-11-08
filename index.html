@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#1f7a5a">
+<meta name="theme-color" content="#4655c9">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,19 +14,19 @@
 <style>
 :root{
   --bg:#f4f5f2; --card:#ffffff; --ink:#1d2320; --sub:#6b746f; --line:#e4e7e2;
-  --brand:#1f7a5a; --brand-soft:#e3f1ea; --exp:#d2553f; --inc:#1f8a5a; --tr:#4a6fa5;
+  --brand:#4655c9; --brand-soft:#e7e9fb; --exp:#d2553f; --inc:#1f8a5a; --tr:#4a6fa5;
   --chip:#eef0ec; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#121614; --card:#1b201d; --ink:#e8ece9; --sub:#98a29c; --line:#2a312d;
-    --brand:#4cc392; --brand-soft:#1d3329; --exp:#f07b65; --inc:#5cd197; --tr:#86a8dd;
+    --brand:#8e9bff; --brand-soft:#22264a; --exp:#f07b65; --inc:#5cd197; --tr:#86a8dd;
     --chip:#252b27; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
   --bg:#121614; --card:#1b201d; --ink:#e8ece9; --sub:#98a29c; --line:#2a312d;
-  --brand:#4cc392; --brand-soft:#1d3329; --exp:#f07b65; --inc:#5cd197; --tr:#86a8dd;
+  --brand:#8e9bff; --brand-soft:#22264a; --exp:#f07b65; --inc:#5cd197; --tr:#86a8dd;
   --chip:#252b27; --shadow:none;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -59,9 +59,9 @@ input.f,select.f,textarea.f{width:100%;background:var(--chip);border:1px solid t
 input.f:focus,select.f:focus,textarea.f:focus{border-color:var(--brand)}
 label.l{display:block;font-size:12.5px;color:var(--sub);margin:10px 0 4px}
 /* summary */
-.sum{background:linear-gradient(135deg,var(--brand),#2c9a73);color:#fff;border-radius:18px;padding:16px;margin:6px 0 10px}
-:root[data-theme="dark"] .sum{background:linear-gradient(135deg,#1d5c45,#24785a)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .sum{background:linear-gradient(135deg,#1d5c45,#24785a)}}
+.sum{background:linear-gradient(135deg,var(--brand),#6a4fd0);color:#fff;border-radius:18px;padding:16px;margin:6px 0 10px}
+:root[data-theme="dark"] .sum{background:linear-gradient(135deg,#2b3290,#463aa0)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .sum{background:linear-gradient(135deg,#2b3290,#463aa0)}}
 .sum .big{font-size:28px;font-weight:700;letter-spacing:.3px}
 .sum .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
 .sum .grid div{font-size:12px;opacity:.85}
@@ -88,7 +88,7 @@ nav.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;fon
 nav.tabs button span{font-size:20px;line-height:1.1;filter:grayscale(1);opacity:.7}
 nav.tabs button.on{color:var(--brand);font-weight:600}
 nav.tabs button.on span{filter:none;opacity:1}
-nav.tabs .add{flex:none;width:54px;height:54px;border-radius:18px;background:var(--brand);color:#fff;font-size:30px;line-height:1;margin:0 8px;transform:translateY(-12px);box-shadow:0 6px 18px rgba(31,122,90,.35);display:grid;place-items:center}
+nav.tabs .add{flex:none;width:54px;height:54px;border-radius:18px;background:var(--brand);color:#fff;font-size:30px;line-height:1;margin:0 8px;transform:translateY(-12px);box-shadow:0 6px 18px rgba(70,85,201,.35);display:grid;place-items:center}
 /* sheet */
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
 .mask.show{opacity:1;pointer-events:auto}
@@ -359,7 +359,7 @@ function txRow(t){
   if(t.oCur)sub.push('原价 '+fmt(t.oAmt,t.oCur));
   if(t.hand&&Math.abs(t.hand.amt-t.amt)>=0.005)sub.push('手记 '+fmt(t.hand.amt,t.cur));
   if(t.flag)sub.unshift('⚠️ 待确认');
-  if(t.src&&t.src!=='manual')sub.push('导入');
+  if(t.src==='notify')sub.push('通知');else if(t.src&&t.src!=='manual')sub.push('导入');
   let right=sign+fmt(Math.abs(t.amt),t.cur);
   let small='';
   if(t.type==='tr'&&t.toAmt!=null&&accById(t.toAcc)&&accById(t.toAcc).cur!==t.cur)small='→ '+fmt(t.toAmt,accById(t.toAcc).cur);
@@ -727,6 +727,7 @@ function renderMore(){
     <button class="item" id="mExp"><span>💾</span><span class="sp">备份（导出 JSON）<div class="small muted" style="font-weight:400">${st.lastBackupAt?'上次 '+ymd(new Date(st.lastBackupAt)):'还没备份过'}；数据只在这台手机里，建议每月导一份</div></span><span class="muted">›</span></button>
     <button class="item" id="mRes"><span>♻️</span><span class="sp">从备份恢复 / 合并导入<div class="small muted" style="font-weight:400">备份会覆盖现有数据；Claude 转好的合并包只添加，不覆盖</div></span><span class="muted">›</span></button>
     <button class="item" id="mCsv"><span>📄</span><span class="sp">导出 CSV（Excel 能打开）</span><span class="muted">›</span></button>
+    ${window.LiangdiNative?`<button class="item" id="mAuto"><span>🔔</span><span class="sp">自动记账（读付款通知）<div class="small muted" style="font-weight:400">${LiangdiNative.hasNotifAccess()?'已开启':'未开启，点这里打开权限'} · 最近识别 ${(S.notifLog||[]).length} 条</div></span><span class="muted">›</span></button>`:''}
     <button class="item" id="mHelp"><span>💡</span><span class="sp">怎么记得又快又全</span><span class="muted">›</span></button>
   </div>
   <div class="muted small" style="text-align:center;margin:16px 0">两地账本 · 共 ${S.tx.length} 笔 · 数据存在本机浏览器<br><button id="mWipe" class="small" style="color:var(--exp);margin-top:8px">清空所有数据</button></div>`;
@@ -741,6 +742,7 @@ function renderMore(){
   $('#mRes').onclick=()=>pickFile('restore');
   $('#mCsv').onclick=exportCSV;
   $('#mHelp').onclick=openHelp;
+  const ma=$('#mAuto');if(ma)ma.onclick=openAuto;
   $('#mWipe').onclick=()=>{if(prompt('会删掉所有账户和流水，且不能撤销。确定的话输入「清空」')!=='清空')return;S=freshState();save();render();toast('已清空')};
 }
 function openHelp(){
@@ -837,6 +839,7 @@ function editRecur(id){
 
 /* ============ 备份 ============ */
 function download(name,text,type){
+  if(window.LiangdiNative&&LiangdiNative.saveFile){LiangdiNative.saveFile(name,text,type);return}
   const blob=new Blob([text],{type});
   const file=new File([blob],name,{type});
   if(navigator.canShare&&navigator.canShare({files:[file]})&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
@@ -895,7 +898,7 @@ $('#fileIn').onchange=async e=>{
           }
           if(fuzzy){m.amt=t.amt;m.eur=t.eur!=null?t.eur:m.eur;m.date=t.date;if(!m.note)m.note=t.note}
         };
-        const cand=(t,exact)=>S.tx.filter(x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&x.cur===t.cur&&(x.acc===t.acc?(!x.src||x.src==='manual'||isHist(x)):isHist(x))&&
+        const cand=(t,exact)=>S.tx.filter(x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&x.cur===t.cur&&(x.acc===t.acc?(!x.src||x.src==='manual'||x.src==='notify'||isHist(x)):isHist(x))&&
           (exact?(Math.abs(x.amt-t.amt)<0.005&&days(x.date,t.date)<=4):((days(x.date,t.date)<=3&&Math.abs(x.amt-t.amt)<=Math.max(1,0.05*t.amt))||(days(x.date,t.date)<=7&&Math.abs(x.amt-t.amt)<=Math.max(0.3,0.01*t.amt)))));
         const pend=[];
         add=add.filter(t=>{
@@ -1131,6 +1134,73 @@ function drawImport(){
   };
 }
 
+/* ============ 自动记账：读 App 收到的付款通知 ============ */
+const NOTIF_APPS={
+  'com.starfinanz.smob.android.sfinanzstatus':'Sparkasse','com.starfinanz.smob.android.sbanking':'Sparkasse',
+  'com.paypal.android.p2pmobile':'PayPal','com.google.android.apps.walletnfcrel':'Google 钱包',
+  'com.eg.android.AlipayGphone':'支付宝','com.tencent.mm':'微信','com.chinamworld.bocmbci':'中国银行','com.chinamworld.main':'中国银行',
+  'cmb.pb':'招商银行','com.cmbchina.ccd.pluto.cmbActivity':'招商信用卡','com.icbc':'工商银行'
+};
+function parseNotif(n){
+  const app=NOTIF_APPS[n.pkg]||n.pkg; const t=(n.title+' '+n.text).replace(/\s+/g,' ');
+  if(/验证码|登录|TAN|Code|Passwort|未成功|失败|abgelehnt|declined|待支付|即将/i.test(t))return null;
+  let amt=null,cur=null,m;
+  if(m=t.match(/(-?\d{1,3}(?:[.\s]\d{3})*,\d{2})\s?(€|EUR)/i)){amt=parseNum(m[1]);cur='EUR'}
+  else if(m=t.match(/(€|EUR)\s?(-?\d+(?:[.,]\d{1,2})?)/i)){amt=parseNum(m[2]);cur='EUR'}
+  else if(m=t.match(/(-?\d+(?:[.,]\d{2})?)\s?€/)){amt=parseNum(m[1]);cur='EUR'}
+  else if(m=t.match(/(?:[¥￥]|RMB|CNY)\s?(-?\d+(?:\.\d{1,2})?)/i)){amt=parseFloat(m[1]);cur='CNY'}
+  else if(m=t.match(/(-?\d+(?:\.\d{1,2})?)\s?元/)){amt=parseFloat(m[1]);cur='CNY'}
+  if(amt==null||isNaN(amt)||Math.abs(amt)<0.01)return null;
+  const inc=/收到|收款成功|到账|入账|退款|转入|已收|erhalten|Gutschrift|Eingang|received|refund|Rückerstattung|zurückerstattet/i.test(t)&&!/付款|支付|消费|bezahlt|gezahlt|gesendet|paid|sent/i.test(t.replace(/收款方|微信支付|支付宝/g,''));
+  let note='';
+  const pats=[/bei ([^.,;]+?)(?: mit| über| am|[.,;]|$)/i,/an ([^.,;]+?) (?:gesendet|bezahlt|gezahlt)/i,/(?:Zahlung an|paid|to|at) ([^.,;]+?)(?:[.,;]|$)/i,/向([^，。,]+?)(?:付款|支付|转账)/,/在([^，。,]+?)(?:消费|支付|付款)/,/([^，。,\s]+?)(?:已收款|收款)/,/商户[:：]?([^，。,]+)/];
+  for(const re of pats){const x=t.match(re);if(x&&x[1]&&x[1].length<=30){note=x[1].trim();break}}
+  if(!note)note=(n.title&&n.title.length<=20?n.title:app);
+  let acc;
+  if(cur==='EUR')acc=(S.settings.accMap&&S.settings.accMap.spk)||(accById('a1')?'a1':defaultAcc('EUR'));
+  else if(app==='支付宝'&&/余额宝|余额/.test(t))acc='a3';
+  else if(app==='微信'&&/零钱/.test(t))acc='a4';
+  else acc=accById('a5')?'a5':defaultAcc('CNY');
+  if(!accById(acc))acc=defaultAcc(cur);
+  return {type:inc?'inc':'exp',amt:round2(Math.abs(amt)),cur,acc,note:(app+' · '+note).slice(0,50)};
+}
+function pullNotifs(){
+  if(!window.LiangdiNative||!S)return;
+  let arr=[];try{arr=JSON.parse(LiangdiNative.takeNotifs()||'[]')}catch(e){return}
+  if(!arr.length)return;
+  S.notifLog=S.notifLog||[];let n=0;
+  for(const x of arr){
+    const id='nt'+String(x.id).replace(/[^\w-]/g,'').slice(-24);
+    const r=parseNotif(x);
+    S.notifLog.unshift({at:x.ts,app:NOTIF_APPS[x.pkg]||x.pkg,text:(x.title+' | '+x.text).slice(0,160),ok:!!r,res:r?(r.type==='inc'?'+':'-')+fmt(r.amt,r.cur)+' '+r.note:'没认出金额，没记'});
+    if(!r||S.tx.some(t=>t.id===id))continue;
+    // 同一笔钱常有两条通知（支付宝 + 中国银行、Google 钱包 + Sparkasse）：15 分钟内同币种同金额的只记一次
+    if(S.tx.some(t=>t.src==='notify'&&t.type===r.type&&(t.oCur||t.cur)===r.cur&&Math.abs((t.oAmt||t.amt)-r.amt)<0.005&&Math.abs((t.ts||0)-(x.ts||0))<15*60e3)){S.notifLog[0].res+='（和上一条是同一笔，没重复记）';continue}
+    const a=accById(r.acc);if(!a)continue;
+    let amt=r.amt,o=null;
+    if(a.cur!==r.cur){o={oAmt:r.amt,oCur:r.cur};amt=round2(conv(r.amt,r.cur,a.cur))}
+    const d=new Date(x.ts||Date.now());
+    S.tx.push(Object.assign({id,type:r.type,amt,cur:a.cur,acc:a.id,note:r.note,date:ymd(d),ts:d.getTime(),eur:round2(conv(amt,a.cur,'EUR')),src:'notify',cat:guessCat(r.type,r.note)||(S.cats[r.type].find(c=>c.name==='其他')||S.cats[r.type][0]).id},o||{}));
+    n++;
+  }
+  S.notifLog=S.notifLog.slice(0,60);
+  save();render();
+  if(n)toast('从付款通知自动记了 '+n+' 笔，点明细里的「通知」可以改');
+}
+window.onNativeResume=pullNotifs;
+function openAuto(){
+  const on=window.LiangdiNative&&LiangdiNative.hasNotifAccess();
+  const log=(S.notifLog||[]).slice(0,30);
+  openSheet(`<div class="grab"></div><b style="font-size:17px">自动记账（读付款通知）</b>
+  <div class="small muted" style="margin:6px 0">只读这些 App 的付款通知：Sparkasse、PayPal、Google 钱包、支付宝、微信、中国银行、招商银行、工商银行。验证码、登录提醒一律不读。认出金额就自动记一笔，标「通知」；之后银行流水同步过来会和它对上，不会重复。</div>
+  <div class="alert"><span>${on?'✅':'⚠️'}</span><span class="sp">${on?'通知权限已开启':'还没开权限：点下面按钮，在列表里打开「两地账本·自动记账」'}</span></div>
+  <button class="btn block" id="auOpen">${on?'查看通知权限设置':'去开启通知权限'}</button>
+  <div class="small muted" style="margin:10px 0 4px">小米 / 红米手机还要在「设置 → 应用设置 → 两地账本」里把省电策略设为「无限制」、打开「自启动」，不然后台会被关掉收不到通知。</div>
+  <div style="font-weight:600;margin:12px 0 4px">最近收到的付款通知</div>
+  ${log.length?log.map(l=>`<div class="imp"><div class="mid"><div>${esc(l.res)}</div><div class="small muted">${esc(l.app)} · ${new Date(l.at).toLocaleString('zh-CN')}<br>${esc(l.text)}</div></div><span>${l.ok?'✅':'❔'}</span></div>`).join(''):'<div class="empty">还没有。开好权限后付一笔钱试试。</div>'}`);
+  $('#auOpen').onclick=()=>LiangdiNative.openNotifSettings();
+}
+
 /* ============ 启动 ============ */
 $$('nav.tabs [data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;searchQ=null;statCat=null;render();window.scrollTo(0,0)});
 $('#addBtn').onclick=()=>openEntry();
@@ -1160,7 +1230,8 @@ $('#searchBtn').onclick=()=>{searchQ='';render();setTimeout(()=>$('#sq')&&$('#sq
   }else if(p.has('error')&&p.has('state'))toast('银行授权没完成：'+(p.get('error_description')||p.get('error')));
   else if(p.has('q')||p.has('text'))openEntry({quick:p.get('q')||p.get('text')});
   else if(p.has('add'))openEntry({type:p.get('add')==='inc'?'inc':p.get('add')==='tr'?'tr':'exp'});
-  if(p.toString())history.replaceState(null,'',location.pathname);
+  if(p.toString()&&!(p.get('app')==='1'&&[...p.keys()].length===1))history.replaceState(null,'',location.pathname);
+  setTimeout(pullNotifs,800);
   if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>

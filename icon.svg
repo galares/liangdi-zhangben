@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#1f7a5a"/>
+  <rect width="512" height="512" rx="112" fill="#4655c9"/>
   <rect x="104" y="128" width="304" height="256" rx="40" fill="#fff"/>
-  <path d="M104 200h304" stroke="#1f7a5a" stroke-width="20"/>
-  <text x="196" y="335" font-family="Arial, sans-serif" font-size="120" font-weight="700" fill="#1f7a5a" text-anchor="middle">€</text>
+  <path d="M104 200h304" stroke="#4655c9" stroke-width="20"/>
+  <text x="196" y="335" font-family="Arial, sans-serif" font-size="120" font-weight="700" fill="#4655c9" text-anchor="middle">€</text>
   <text x="318" y="335" font-family="Arial, sans-serif" font-size="120" font-weight="700" fill="#d2553f" text-anchor="middle">¥</text>
 </svg>
