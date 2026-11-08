@@ -717,7 +717,7 @@ function renderMore(){
   </div>
   <div class="card menu">
     <button class="item" id="mExp"><span>💾</span><span class="sp">备份（导出 JSON）<div class="small muted" style="font-weight:400">${st.lastBackupAt?'上次 '+ymd(new Date(st.lastBackupAt)):'还没备份过'}；数据只在这台手机里，建议每月导一份</div></span><span class="muted">›</span></button>
-    <button class="item" id="mRes"><span>♻️</span><span class="sp">从备份恢复</span><span class="muted">›</span></button>
+    <button class="item" id="mRes"><span>♻️</span><span class="sp">从备份恢复 / 合并导入<div class="small muted" style="font-weight:400">备份会覆盖现有数据；Claude 转好的合并包只添加，不覆盖</div></span><span class="muted">›</span></button>
     <button class="item" id="mCsv"><span>📄</span><span class="sp">导出 CSV（Excel 能打开）</span><span class="muted">›</span></button>
     <button class="item" id="mHelp"><span>💡</span><span class="sp">怎么记得又快又全</span><span class="muted">›</span></button>
   </div>
@@ -850,6 +850,14 @@ $('#fileIn').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   if(fileMode==='restore'){
     try{const j=JSON.parse(await f.text());if(!j.accounts||!j.tx)throw new Error('不是两地账本的备份');
+      if(j.merge){
+        // 合并包：只往里加账户、分类和流水，不动现有数据；同 id 的跳过，可以重复导
+        const have=new Set(S.tx.map(t=>t.id));const add=j.tx.filter(t=>!have.has(t.id));
+        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，其中 ${add.length} 笔是新的。只添加，不会改动你现在记的账。确定导入？`))return;
+        for(const a of j.accounts)if(!accById(a.id))S.accounts.push(a);
+        for(const ty of ['exp','inc'])for(const c of (j.cats&&j.cats[ty])||[])if(!catById(ty,c.id))S.cats[ty].splice(Math.max(0,S.cats[ty].length-1),0,c);
+        S.tx.push(...add);save();tab='home';render();toast('已导入 '+add.length+' 笔');return;
+      }
       if(!confirm(`备份里有 ${j.tx.length} 笔、${j.accounts.length} 个账户。恢复会覆盖现在的数据（现在 ${S.tx.length} 笔），确定？`))return;
       S=Object.assign(freshState(),j);save();render();toast('已恢复');
     }catch(err){toast('恢复失败：'+err.message)}
