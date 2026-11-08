@@ -261,7 +261,7 @@ function balances(){
   return b;
 }
 function monthTx(k){return S.tx.filter(t=>t.date.startsWith(k))}
-function sumBase(list,type){return list.filter(t=>t.type===type).reduce((a,t)=>a+inBase(t),0)}
+function sumBase(list,type){return list.filter(t=>t.type===type&&!t.xfer).reduce((a,t)=>a+inBase(t),0)} // xfer：自己账户之间倒钱（购汇、余额宝提现、国内汇款），只动余额不进收支
 function sortTx(list){return list.slice().sort((a,b)=>b.date.localeCompare(a.date)||(b.ts||0)-(a.ts||0))}
 
 /* ============ 智能识别 ============ */
@@ -439,7 +439,7 @@ function renderHome(){
 function renderStats(){
   const v=$('#view');const b=S.settings.base;
   const list=monthTx(curMonth);
-  const items=list.filter(t=>t.type===statType);
+  const items=list.filter(t=>t.type===statType&&!t.xfer);
   const total=items.reduce((a,t)=>a+inBase(t),0);
   const byCat={};items.forEach(t=>{const k=t.cat||'_';byCat[k]=(byCat[k]||0)+inBase(t)});
   const rows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
