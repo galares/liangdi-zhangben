@@ -852,6 +852,7 @@ $('#fileIn').onchange=async e=>{
     try{const j=JSON.parse(await f.text());if(!j.accounts||!j.tx)throw new Error('不是两地账本的备份');
       if(j.merge){
         // 合并包：只往里加账户、分类和流水，不动现有数据；同 id 的跳过，可以重复导
+        const snapshot=JSON.stringify(S); // 取消时回滚
         // 银行账户第一次导入：问一次合到哪个现有账户，之后记住
         S.settings.accMap=S.settings.accMap||{};
         for(const a of j.accounts){
@@ -869,16 +870,33 @@ $('#fileIn').onchange=async e=>{
         j.accounts=j.accounts.filter(a=>remap(a.id)===a.id);
         const have=new Set(S.tx.flatMap(t=>t.ext?[t.id,t.ext]:[t.id]));let add=j.tx.filter(t=>!have.has(t.id));
         // 银行流水：和手记的同账户、同收支、同金额、日期差 ≤3 天的算同一笔，不重复加
-        const used=new Set();let matched=0;
+        // 隐藏的历史账户（比如小米记账历史）里的同一笔也算：挪到银行账户，保留原来的分类和备注
+        const used=new Set();let matched=0,fromHist=0;
+        const isHist=x=>{const a=accById(x.acc);return a&&a.archived&&x.src&&x.src.startsWith('import:')};
         add=add.filter(t=>{
           if(!t.dedupe)return true;
-          const m=S.tx.find(x=>!used.has(x.id)&&!x.ext&&x.acc===t.acc&&x.type===t.type&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=3&&(!x.src||x.src==='manual'));
-          if(m){used.add(m.id);m.ext=t.id;matched++;return false}return true;
+          const near=x=>!used.has(x.id)&&!x.ext&&x.type===t.type&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=4;
+          let m=S.tx.find(x=>near(x)&&x.acc===t.acc&&(!x.src||x.src==='manual'));
+          if(!m)m=S.tx.find(x=>near(x)&&isHist(x)&&(new Date(t.date)-new Date(x.date))/864e5>=-1);
+          if(!m)return true;
+          used.add(m.id);m.ext=t.id;matched++;
+          if(m.acc!==t.acc){
+            const old=accById(m.acc);old.init=round2((+old.init||0)+(m.type==='exp'?-m.amt:m.amt)); // 历史账户余额保持不变
+            m.acc=t.acc;m.cur=t.cur;fromHist++;
+          }
+          return false;
         });
-        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你手记的对上了（不重复加）`:''}。只添加，不会改动你现在记的账。确定导入？`))return;
+        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你记过的对上了（不重复加${fromHist?`，其中 ${fromHist} 笔来自历史记录`:''}）`:''}。确定导入？`)){S=JSON.parse(snapshot);return}
         for(const a of j.accounts)if(!accById(a.id))S.accounts.push(a);
         for(const ty of ['exp','inc'])for(const c of (j.cats&&j.cats[ty])||[])if(!catById(ty,c.id))S.cats[ty].splice(Math.max(0,S.cats[ty].length-1),0,c);
-        for(const t of add){delete t.dedupe;if((t.type==='exp'||t.type==='inc')&&!t.cat)t.cat=guessCat(t.type,t.note)||(S.cats[t.type].find(c=>c.name==='其他')||S.cats[t.type][0]).id}
+        for(const t of add){
+          delete t.dedupe;
+          if((t.type==='exp'||t.type==='inc')&&!t.cat){
+            const byName=t.catName&&S.cats[t.type].find(c=>c.name===t.catName);
+            t.cat=(byName&&byName.id)||guessCat(t.type,t.note)||(S.cats[t.type].find(c=>c.name==='其他')||S.cats[t.type][0]).id;
+          }
+          delete t.catName;
+        }
         S.tx.push(...add);
         // 银行给的真实余额：对不上就自动补一笔校准
         let recMsg='';
