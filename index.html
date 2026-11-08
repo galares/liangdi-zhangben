@@ -852,11 +852,48 @@ $('#fileIn').onchange=async e=>{
     try{const j=JSON.parse(await f.text());if(!j.accounts||!j.tx)throw new Error('不是两地账本的备份');
       if(j.merge){
         // 合并包：只往里加账户、分类和流水，不动现有数据；同 id 的跳过，可以重复导
-        const have=new Set(S.tx.map(t=>t.id));const add=j.tx.filter(t=>!have.has(t.id));
-        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，其中 ${add.length} 笔是新的。只添加，不会改动你现在记的账。确定导入？`))return;
+        // 银行账户第一次导入：问一次合到哪个现有账户，之后记住
+        S.settings.accMap=S.settings.accMap||{};
+        for(const a of j.accounts){
+          if(!j.balances||!(a.id in j.balances)||accById(a.id)||S.settings.accMap[a.id])continue;
+          const cands=S.accounts.filter(x=>!x.archived&&x.cur===a.cur);
+          if(!cands.length)continue;
+          const ans=prompt(`「${a.name}」的流水记到哪个账户？输入序号：\n${cands.map((x,i)=>`${i+1}. ${x.name}`).join('\n')}\n0. 新建「${a.name}」账户`,'1');
+          if(ans===null)return;
+          const k=parseInt(ans,10);
+          S.settings.accMap[a.id]=k>=1&&k<=cands.length?cands[k-1].id:a.id;
+        }
+        const remap=id=>S.settings.accMap[id]&&S.settings.accMap[id]!==id?S.settings.accMap[id]:id;
+        j.tx.forEach(t=>{t.acc=remap(t.acc)});
+        j.balances=Object.fromEntries(Object.entries(j.balances||{}).map(([k,v])=>[remap(k),v]));
+        j.accounts=j.accounts.filter(a=>remap(a.id)===a.id);
+        const have=new Set(S.tx.flatMap(t=>t.ext?[t.id,t.ext]:[t.id]));let add=j.tx.filter(t=>!have.has(t.id));
+        // 银行流水：和手记的同账户、同收支、同金额、日期差 ≤3 天的算同一笔，不重复加
+        const used=new Set();let matched=0;
+        add=add.filter(t=>{
+          if(!t.dedupe)return true;
+          const m=S.tx.find(x=>!used.has(x.id)&&!x.ext&&x.acc===t.acc&&x.type===t.type&&Math.abs(x.amt-t.amt)<0.005&&Math.abs((new Date(x.date)-new Date(t.date))/864e5)<=3&&(!x.src||x.src==='manual'));
+          if(m){used.add(m.id);m.ext=t.id;matched++;return false}return true;
+        });
+        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你手记的对上了（不重复加）`:''}。只添加，不会改动你现在记的账。确定导入？`))return;
         for(const a of j.accounts)if(!accById(a.id))S.accounts.push(a);
         for(const ty of ['exp','inc'])for(const c of (j.cats&&j.cats[ty])||[])if(!catById(ty,c.id))S.cats[ty].splice(Math.max(0,S.cats[ty].length-1),0,c);
-        S.tx.push(...add);save();tab='home';render();toast('已导入 '+add.length+' 笔');return;
+        for(const t of add){delete t.dedupe;if((t.type==='exp'||t.type==='inc')&&!t.cat)t.cat=guessCat(t.type,t.note)||(S.cats[t.type].find(c=>c.name==='其他')||S.cats[t.type][0]).id}
+        S.tx.push(...add);
+        // 银行给的真实余额：对不上就自动补一笔校准
+        let recMsg='';
+        for(const [aid,b] of Object.entries(j.balances||{})){
+          const a=accById(aid);if(!a)continue;const d=round2(b.amt-(balances()[aid]||0));
+          S.settings.bankSynced=S.settings.bankSynced||{};
+          if(!S.settings.bankSynced[aid]){
+            // 第一次接银行：把差额算进起始余额，不生成一大笔校准
+            S.settings.bankSynced[aid]=today();
+            if(Math.abs(d)>=0.005){a.init=round2((+a.init||0)+d);recMsg+=`，${a.name}起始余额已按银行余额调好`}else recMsg+=`，${a.name}余额对上了`;
+          }else if(Math.abs(d)>=0.005){S.tx.push({id:uid(),type:'adj',amt:d,cur:a.cur,acc:aid,date:b.date||today(),note:'',ts:Date.now(),eur:conv(d,a.cur,'EUR'),src:'auto'});recMsg+=`，${a.name}差 ${fmt(d,a.cur,{sign:true})} 已校准`}
+          else recMsg+=`，${a.name}余额对上了`;
+          S.settings.lastReconcile[aid]=b.date||today();S.settings.lastReconcileAt=Date.now();
+        }
+        save();tab='home';render();toast('已导入 '+add.length+' 笔'+recMsg);return;
       }
       if(!confirm(`备份里有 ${j.tx.length} 笔、${j.accounts.length} 个账户。恢复会覆盖现在的数据（现在 ${S.tx.length} 笔），确定？`))return;
       S=Object.assign(freshState(),j);save();render();toast('已恢复');
@@ -1073,7 +1110,12 @@ $('#searchBtn').onclick=()=>{searchQ='';render();setTimeout(()=>$('#sq')&&$('#sq
   refreshRates(false);
   // 快捷方式 / 分享：?add=1 打开记账，?q=午饭 12 直接识别
   const p=new URLSearchParams(location.search);
-  if(p.has('q')||p.has('text'))openEntry({quick:p.get('q')||p.get('text')});
+  if(p.has('code')&&p.has('state')){
+    // 银行授权回调：只显示授权码让用户复制，不在网页里做任何处理
+    openSheet(`<div class="grab"></div><b style="font-size:17px">银行授权完成</b><div class="small muted" style="margin:6px 0">把下面这串授权码复制发给 Claude（电脑上），它会用来拉流水。授权码只能用一次。</div><textarea class="f num" rows="3" readonly id="ebc">${esc(p.get('code'))}</textarea><button class="btn block" style="margin-top:10px" id="ebcp">复制</button>`);
+    $('#ebcp').onclick=()=>{navigator.clipboard.writeText(p.get('code')).then(()=>toast('已复制'),()=>{$('#ebc').select();toast('长按选中后复制')})};
+  }else if(p.has('error')&&p.has('state'))toast('银行授权没完成：'+(p.get('error_description')||p.get('error')));
+  else if(p.has('q')||p.has('text'))openEntry({quick:p.get('q')||p.get('text')});
   else if(p.has('add'))openEntry({type:p.get('add')==='inc'?'inc':p.get('add')==='tr'?'tr':'exp'});
   if(p.toString())history.replaceState(null,'',location.pathname);
   if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
