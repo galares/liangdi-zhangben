@@ -856,7 +856,7 @@ $('#fileIn').onchange=async e=>{
         // 银行账户第一次导入：问一次合到哪个现有账户，之后记住
         S.settings.accMap=S.settings.accMap||{};
         for(const a of j.accounts){
-          if(!j.balances||!(a.id in j.balances)||accById(a.id)||S.settings.accMap[a.id])continue;
+          if(!j.balances||!(a.id in j.balances)||accById(a.id)||S.settings.accMap[a.id]||a.archived)continue;
           const cands=S.accounts.filter(x=>!x.archived&&x.cur===a.cur);
           if(!cands.length)continue;
           const ans=prompt(`「${a.name}」的流水记到哪个账户？输入序号：\n${cands.map((x,i)=>`${i+1}. ${x.name}`).join('\n')}\n0. 新建「${a.name}」账户`,'1');
