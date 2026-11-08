@@ -358,6 +358,7 @@ function txRow(t){
   if(t.type==='tr'){const b=accById(t.toAcc);sub.push((a?a.name:'?')+' → '+(b?b.name:'?'))}else sub.push(a?a.name:'已删账户');
   if(t.oCur)sub.push('原价 '+fmt(t.oAmt,t.oCur));
   if(t.hand&&Math.abs(t.hand.amt-t.amt)>=0.005)sub.push('手记 '+fmt(t.hand.amt,t.cur));
+  if(t.flag)sub.unshift('⚠️ 待确认');
   if(t.src&&t.src!=='manual')sub.push('导入');
   let right=sign+fmt(Math.abs(t.amt),t.cur);
   let small='';
@@ -381,6 +382,8 @@ function listHtml(list){
 
 function reminders(){
   const out=[];
+  const nf=S.tx.filter(t=>t.flag).length;
+  if(nf)out.push({ic:'⚠️',t:`有 ${nf} 笔手记和银行对不上，要你确认一下（点进去看原因，没问题点「确认无误」）。`,act:'flag',btn:'去看'});
   if(!S.settings.welcomed)out.push({ic:'👋',t:'第一次用：先去「账户」把每个账户现在的余额填上，之后记账才对得上。',act:'accounts',btn:'去填'});
   const last=S.tx.filter(t=>t.src==='manual'||!t.src).reduce((m,t)=>Math.max(m,t.ts||0),0);
   if(S.tx.length&&last){const days=Math.floor((Date.now()-last)/864e5);if(days>=2)out.push({ic:'⏰',t:`已经 ${days} 天没手动记账了。记不清的话，去「更多 → 导入账单」把支付宝/微信/银行流水导进来。`,act:'more',btn:'导入'})}
@@ -395,7 +398,7 @@ function renderHome(){
   const v=$('#view');
   if(searchQ!==null){
     const q=searchQ.toLowerCase();
-    const list=q?S.tx.filter(t=>{const c=catById(t.type,t.cat);const a=accById(t.acc);return [t.note,c&&c.name,a&&a.name,String(t.amt)].some(x=>x&&String(x).toLowerCase().includes(q))}):[];
+    const list=q?S.tx.filter(t=>{const c=catById(t.type,t.cat);const a=accById(t.acc);if(q==='待确认')return !!t.flag;return [t.note,c&&c.name,a&&a.name,String(t.amt)].some(x=>x&&String(x).toLowerCase().includes(q))}):[];
     const e=sumBase(list,'exp');
     v.innerHTML=`<div class="search row"><input class="f" id="sq" placeholder="搜备注、分类、账户、金额" value="${esc(searchQ)}"><button class="btn ghost" id="sqx">取消</button></div>
     ${q?`<div class="muted small" style="margin:4px">找到 ${list.length} 笔，支出合计 ${fmt(e,S.settings.base)}</div>`:''}${q?listHtml(list.slice(0,300)):''}`;
@@ -432,7 +435,7 @@ function renderHome(){
   ${listHtml(list)}`;
   $('#pm').onclick=()=>{curMonth=shiftMonth(curMonth,-1);render()};
   $('#nm').onclick=()=>{curMonth=shiftMonth(curMonth,1);render()};
-  $$('[data-go]').forEach(x=>x.onclick=()=>{const g=x.dataset.go;if(g==='backup'){exportJSON();return}if(g==='accounts')S.settings.welcomed=true,save();tab=g;render();window.scrollTo(0,0)});
+  $$('[data-go]').forEach(x=>x.onclick=()=>{const g=x.dataset.go;if(g==='flag'){searchQ='待确认';render();return}if(g==='backup'){exportJSON();return}if(g==='accounts')S.settings.welcomed=true,save();tab=g;render();window.scrollTo(0,0)});
   bindTxRows();
 }
 
@@ -626,6 +629,7 @@ function drawEntry(){
     ${['7','8','9','⌫','4','5','6','+','1','2','3','-'].map(k=>`<button data-k="${k}" class="${'⌫+-'.includes(k)?'fn':''}">${k}</button>`).join('')}
     <button data-k="." >.</button><button data-k="0">0</button><button data-k="again" class="fn">再记</button><button data-k="ok" class="ok" style="grid-row:auto">${isEdit?'保存':'完成'}</button>
   </div>
+  ${isEdit&&(S.tx.find(x=>x.id===E.id)||{}).flag?`<div class="alert" style="margin-top:10px"><span>⚠️</span><span class="sp">${esc(S.tx.find(x=>x.id===E.id).flag)}</span></div><button class="btn ghost block" id="okFlag" style="margin-top:6px">确认无误，去掉标记</button>`:''}
   ${isEdit?`<div class="row" style="margin-top:10px;gap:8px"><button class="btn danger" id="del" style="flex:1">删除</button><button class="btn ghost" id="dup" style="flex:1">再记一笔同样的</button></div>`:''}`);
   updateAmt();
   $$('[data-ty]').forEach(x=>x.onclick=()=>{E.type=x.dataset.ty;E.cat=null;if(E.type==='tr'&&!E.toAcc){const o=S.accounts.find(a=>!a.archived&&a.id!==E.acc);E.toAcc=o&&o.id}if(E.type!=='tr')E.payCur=E.payCur||accById(E.acc).cur;E.cat=guessCat(E.type,E.note);drawEntry()});
@@ -638,6 +642,7 @@ function drawEntry(){
   const qk=$('#qk');
   if(qk){const go=()=>{if(!qk.value.trim())return;applyQuick(qk.value);drawEntry();toast('已识别，看一眼对不对再点完成')};$('#qkGo').onclick=go;qk.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}}
   $$('#kp [data-k]').forEach(x=>x.onclick=()=>keypad(x.dataset.k));
+  const okf=$('#okFlag');if(okf)okf.onclick=()=>{const x=S.tx.find(y=>y.id===E.id);if(x){delete x.flag;save()}closeSheet();render();toast('已确认')};
   const del=$('#del');if(del)del.onclick=()=>{if(!confirm('删除这笔？'))return;S.tx=S.tx.filter(t=>t.id!==E.id);save();closeSheet();render();toast('已删除')};
   const dup=$('#dup');if(dup)dup.onclick=()=>{E.id=null;E.date=today();drawEntry();toast('改好金额后点完成')};
 }
@@ -675,6 +680,8 @@ function commitEntry(again){
   else if(!(amt>0)){toast('先输金额');return}
   if(E.type==='tr'){if(!E.toAcc||E.toAcc===E.acc){toast('选一个转入账户');return}}
   const t={id:E.id||uid(),type:E.type,acc:E.acc,cur:a.cur,date:E.date,note:E.note.trim(),ts:E.id?(S.tx.find(x=>x.id===E.id)||{}).ts||Date.now():Date.now(),src:E.src||'manual'};
+  const prev=E.id&&S.tx.find(x=>x.id===E.id);
+  if(prev){for(const k of ['ext','hand','xfer','bookDate'])if(prev[k]!==undefined)t[k]=prev[k]}
   if(E.type==='exp'||E.type==='inc'){
     t.cat=E.cat||guessCat(E.type,t.note)||(S.cats[E.type].find(c=>c.name==='其他')||S.cats[E.type][0]).id;
     if(E.payCur!==a.cur){t.amt=round2(charged);t.oAmt=amt;t.oCur=E.payCur}else t.amt=amt;
@@ -877,7 +884,7 @@ $('#fileIn').onchange=async e=>{
         let fuzzyN=0,fixedAmt=0;
         const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
         const take=(m,t,fuzzy)=>{
-          used.add(m.id);m.ext=t.id;matched++;
+          used.add(m.id);m.ext=t.id;matched++;delete m.flag;
           if(fuzzy){fuzzyN++;if(Math.abs(m.amt-t.amt)>=0.005){fixedAmt++;m.hand={amt:m.amt,date:m.date};}} // 手记和银行有出入：以银行为准，原手记数字留着
           if(m.acc!==t.acc){
             const old=accById(m.acc);old.init=round2((+old.init||0)+(m.type==='exp'?-m.amt:m.amt)); // 历史账户余额保持不变
