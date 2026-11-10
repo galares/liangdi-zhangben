@@ -794,6 +794,7 @@ function renderMore(){
     <button class="item" id="mExp"><span>💾</span><span class="sp">备份（导出 JSON）<div class="small muted" style="font-weight:400">${st.lastBackupAt?'上次 '+ymd(new Date(st.lastBackupAt)):'还没备份过'}；数据只在这台手机里，建议每月导一份</div></span><span class="muted">›</span></button>
     <button class="item" id="mRes"><span>♻️</span><span class="sp">从备份恢复 / 合并导入<div class="small muted" style="font-weight:400">备份会覆盖现有数据；Claude 转好的合并包只添加，不覆盖</div></span><span class="muted">›</span></button>
     <button class="item" id="mCsv"><span>📄</span><span class="sp">导出 CSV（Excel 能打开）</span><span class="muted">›</span></button>
+    <button class="item" id="mUpd"><span>⬆️</span><span class="sp">检查更新<div class="small muted" style="font-weight:400">当前版本 v${APP_VER}${window.LiangdiNative?' · App 外壳 '+esc(LiangdiNative.version()):''}；联网打开会自动更新</div></span><span class="muted">›</span></button>
     <button class="item" id="mSync"><span>🔄</span><span class="sp">银行同步<div class="small muted" style="font-weight:400">${S.settings.syncKey?'已设口令 · 银行数据 '+esc(S.settings.syncLabel||'还没同步'):'没设口令，点这里输入'}；打开 App 自动同步</div></span><span class="muted">›</span></button>
     ${window.LiangdiNative?`<button class="item" id="mAuto"><span>🔔</span><span class="sp">自动记账（读付款通知）<div class="small muted" style="font-weight:400">${LiangdiNative.hasNotifAccess()?'已开启':'未开启，点这里打开权限'} · 最近识别 ${(S.notifLog||[]).length} 条</div></span><span class="muted">›</span></button>`:''}
     <button class="item" id="mHelp"><span>💡</span><span class="sp">怎么记得又快又全</span><span class="muted">›</span></button>
@@ -812,6 +813,7 @@ function renderMore(){
   $('#mHelp').onclick=openHelp;
   const ma=$('#mAuto');if(ma)ma.onclick=openAuto;
   $('#mSync').onclick=setSyncKey;
+  $('#mUpd').onclick=checkUpdate;
   $('#mWipe').onclick=()=>{if(prompt('会删掉所有账户和流水，且不能撤销。确定的话输入「清空」')!=='清空')return;S=freshState();save();render();toast('已清空')};
 }
 function openHelp(){
@@ -1260,6 +1262,22 @@ function pullNotifs(){
 }
 window.onNativeResume=()=>{pullNotifs();syncBank(false)};
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!window.LiangdiNative)syncBank(false)});
+
+/* ============ 检查更新 ============ */
+const APP_VER=15; // 和 sw.js 的 CACHE 版本号一起改
+async function checkUpdate(){
+  toast('正在检查…');
+  try{
+    const t=await fetch('./sw.js?t='+Date.now(),{cache:'no-store'}).then(r=>r.text());
+    const v=+((t.match(/liangdi-v(\d+)/)||[])[1]||0);
+    if(v>APP_VER){
+      toast('有新版 v'+v+'，正在更新…');
+      if(window.caches)for(const k of await caches.keys())await caches.delete(k);
+      const regs=navigator.serviceWorker?await navigator.serviceWorker.getRegistrations():[];for(const r of regs)await r.update().catch(()=>{});
+      setTimeout(()=>location.reload(),600);
+    }else toast('已经是最新版 v'+APP_VER);
+  }catch(e){toast('没连上网，稍后再试')}
+}
 
 /* ============ 银行同步 ============ */
 // 电脑每天拉 Sparkasse/PayPal 流水，加密后放到网站 sync/；App 用口令解密、自动合并（同一笔不会重复）
