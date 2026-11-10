@@ -1,5 +1,5 @@
 // 离线缓存：有网先取新版（3 秒超时），没网用缓存
-const CACHE = 'liangdi-v12';
+const CACHE = 'liangdi-v13';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

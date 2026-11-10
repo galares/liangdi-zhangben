@@ -15,6 +15,7 @@
     {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
+    {"name": "这次能花多少", "url": "./?spend=1", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]},
     {"name": "记一笔支出", "url": "./?add=exp", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]},
     {"name": "记一笔收入", "url": "./?add=inc", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]},
     {"name": "转账 / 换汇", "url": "./?add=tr", "icons": [{"src": "icon-192.png", "sizes": "192x192"}]}
