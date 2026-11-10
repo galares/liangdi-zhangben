@@ -430,11 +430,12 @@ function renderHome(){
     ${curLine}
     <div class="grid"><div>收入<b class="num">${fmt(i,b)}</b></div><div>结余<b class="num">${fmt(i-e,b)}</b></div><div>汇率<b class="num" style="font-size:13px">${b==='EUR'?'€1=¥'+conv(1,'EUR','CNY').toFixed(2):'¥1=€'+conv(1,'CNY','EUR').toFixed(4)}</b></div></div>
     ${budgetHtml}
-    ${curMonth===nowK?`<button class="chip" id="spendBtn" style="margin-top:10px;background:rgba(255,255,255,.22);color:#fff;border:0">🛒 这次能花多少</button>`:''}
+    ${curMonth===nowK?`<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="chip" id="spendBtn" style="background:rgba(255,255,255,.22);color:#fff;border:0">🛒 这次能花多少</button><button class="chip" id="syncBtn" style="background:rgba(255,255,255,.22);color:#fff;border:0">🔄 同步银行${S.settings.syncLabel?' · '+esc(S.settings.syncLabel):''}</button></div>`:''}
   </div>
   ${rem.map(r=>`<div class="alert"><span>${r.ic}</span><span class="sp">${r.t}</span><button class="chip on" data-go="${r.act}">${r.btn}</button></div>`).join('')}
   ${listHtml(list)}`;
   if($('#spendBtn'))$('#spendBtn').onclick=openSpend;
+  if($('#syncBtn'))$('#syncBtn').onclick=()=>syncBank(true);
   $('#pm').onclick=()=>{curMonth=shiftMonth(curMonth,-1);render()};
   $('#nm').onclick=()=>{curMonth=shiftMonth(curMonth,1);render()};
   $$('[data-go]').forEach(x=>x.onclick=()=>{const g=x.dataset.go;if(g==='flag'){searchQ='待确认';render();return}if(g==='backup'){exportJSON();return}if(g==='accounts')S.settings.welcomed=true,save();tab=g;render();window.scrollTo(0,0)});
@@ -453,7 +454,7 @@ function spendCalc(){
   const fixedSum=st.fixed.reduce((a,f)=>a+(+f.amt||0),0);
   const daily=Math.max(0,budget-fixedSum);
   const k=monthKey(today());
-  const isFixed=t=>st.fixed.some(f=>f.kw&&(t.note||'').toLowerCase().includes(f.kw.toLowerCase()));
+  const isFixed=t=>st.fixed.some(f=>f.kw&&((t.note||'')+' '+(t.bankNote||'')).toLowerCase().includes(f.kw.toLowerCase()));
   const exp=monthTx(k).filter(t=>t.type==='exp'&&!t.xfer);
   const eur=exp.filter(t=>t.cur==='EUR'&&!isFixed(t));
   const big=eur.filter(t=>inBase(t)>=bigLine);
@@ -709,7 +710,7 @@ function drawEntry(){
   if(qk){const go=()=>{if(!qk.value.trim())return;applyQuick(qk.value);drawEntry();toast('已识别，看一眼对不对再点完成')};$('#qkGo').onclick=go;qk.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}}
   $$('#kp [data-k]').forEach(x=>x.onclick=()=>keypad(x.dataset.k));
   const okf=$('#okFlag');if(okf)okf.onclick=()=>{const x=S.tx.find(y=>y.id===E.id);if(x){delete x.flag;save()}closeSheet();render();toast('已确认')};
-  const del=$('#del');if(del)del.onclick=()=>{if(!confirm('删除这笔？'))return;S.tx=S.tx.filter(t=>t.id!==E.id);save();closeSheet();render();toast('已删除')};
+  const del=$('#del');if(del)del.onclick=()=>{if(!confirm('删除这笔？'))return;{const o=S.tx.find(t=>t.id===E.id);if(o&&(o.ext||(o.src||'').startsWith('import'))){const g=S.settings.gone=S.settings.gone||[];g.push(o.id);if(o.ext)g.push(o.ext)}}S.tx=S.tx.filter(t=>t.id!==E.id);save();closeSheet();render();toast('已删除')};
   const dup=$('#dup');if(dup)dup.onclick=()=>{E.id=null;E.date=today();drawEntry();toast('改好金额后点完成')};
 }
 function updateAmt(){
@@ -793,6 +794,7 @@ function renderMore(){
     <button class="item" id="mExp"><span>💾</span><span class="sp">备份（导出 JSON）<div class="small muted" style="font-weight:400">${st.lastBackupAt?'上次 '+ymd(new Date(st.lastBackupAt)):'还没备份过'}；数据只在这台手机里，建议每月导一份</div></span><span class="muted">›</span></button>
     <button class="item" id="mRes"><span>♻️</span><span class="sp">从备份恢复 / 合并导入<div class="small muted" style="font-weight:400">备份会覆盖现有数据；Claude 转好的合并包只添加，不覆盖</div></span><span class="muted">›</span></button>
     <button class="item" id="mCsv"><span>📄</span><span class="sp">导出 CSV（Excel 能打开）</span><span class="muted">›</span></button>
+    <button class="item" id="mSync"><span>🔄</span><span class="sp">银行同步<div class="small muted" style="font-weight:400">${S.settings.syncKey?'已设口令 · 银行数据 '+esc(S.settings.syncLabel||'还没同步'):'没设口令，点这里输入'}；打开 App 自动同步</div></span><span class="muted">›</span></button>
     ${window.LiangdiNative?`<button class="item" id="mAuto"><span>🔔</span><span class="sp">自动记账（读付款通知）<div class="small muted" style="font-weight:400">${LiangdiNative.hasNotifAccess()?'已开启':'未开启，点这里打开权限'} · 最近识别 ${(S.notifLog||[]).length} 条</div></span><span class="muted">›</span></button>`:''}
     <button class="item" id="mHelp"><span>💡</span><span class="sp">怎么记得又快又全</span><span class="muted">›</span></button>
   </div>
@@ -809,6 +811,7 @@ function renderMore(){
   $('#mCsv').onclick=exportCSV;
   $('#mHelp').onclick=openHelp;
   const ma=$('#mAuto');if(ma)ma.onclick=openAuto;
+  $('#mSync').onclick=setSyncKey;
   $('#mWipe').onclick=()=>{if(prompt('会删掉所有账户和流水，且不能撤销。确定的话输入「清空」')!=='清空')return;S=freshState();save();render();toast('已清空')};
 }
 function openHelp(){
@@ -921,13 +924,7 @@ function exportCSV(){
   const csv='﻿'+[head,...rows].map(r=>r.map(x=>{x=String(x??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}).join(',')).join('\n');
   download('两地账本_'+today()+'.csv',csv,'text/csv');
 }
-let fileMode='';
-function pickFile(mode){fileMode=mode;const f=$('#fileIn');f.value='';f.click()}
-$('#fileIn').onchange=async e=>{
-  const f=e.target.files[0];if(!f)return;
-  if(fileMode==='restore'){
-    try{const j=JSON.parse(await f.text());if(!j.accounts||!j.tx)throw new Error('不是两地账本的备份');
-      if(j.merge){
+function mergePack(j,silent){
         // 合并包：只往里加账户、分类和流水，不动现有数据；同 id 的跳过，可以重复导
         const snapshot=JSON.stringify(S); // 取消时回滚
         // 账户设置包：给现有账户改名、改图标，标记已完成初始设置
@@ -940,7 +937,7 @@ $('#fileIn').onchange=async e=>{
           const cands=S.accounts.filter(x=>!x.archived&&x.cur===a.cur);
           if(!cands.length)continue;
           const ans=prompt(`「${a.name}」的流水记到哪个账户？输入序号：\n${cands.map((x,i)=>`${i+1}. ${x.name}`).join('\n')}\n0. 新建「${a.name}」账户`,'1');
-          if(ans===null)return;
+          if(ans===null){S=JSON.parse(snapshot);return -1}
           const k=parseInt(ans,10);
           S.settings.accMap[a.id]=k>=1&&k<=cands.length?cands[k-1].id:a.id;
         }
@@ -948,7 +945,7 @@ $('#fileIn').onchange=async e=>{
         j.tx.forEach(t=>{t.acc=remap(t.acc)});
         j.balances=Object.fromEntries(Object.entries(j.balances||{}).map(([k,v])=>[remap(k),v]));
         j.accounts=j.accounts.filter(a=>remap(a.id)===a.id);
-        const have=new Set(S.tx.flatMap(t=>t.ext?[t.id,t.ext]:[t.id]));let add=j.tx.filter(t=>!have.has(t.id));
+        const have=new Set([...S.tx.flatMap(t=>t.ext?[t.id,t.ext]:[t.id]),...(S.settings.gone||[])]); /* gone：用户删过的银行流水，同步时别再加回来 */let add=j.tx.filter(t=>!have.has(t.id));
         // 银行流水：和手记的同账户、同收支、同金额、日期差 ≤3 天的算同一笔，不重复加
         // 隐藏的历史账户（比如小米记账历史）里的同一笔也算：挪到银行账户，保留原来的分类和备注
         const used=new Set();let matched=0,fromHist=0;
@@ -956,7 +953,7 @@ $('#fileIn').onchange=async e=>{
         let fuzzyN=0,fixedAmt=0;
         const days=(a,b)=>Math.abs((new Date(a)-new Date(b))/864e5);
         const take=(m,t,fuzzy)=>{
-          used.add(m.id);m.ext=t.id;matched++;delete m.flag;
+          used.add(m.id);m.ext=t.id;matched++;delete m.flag;if(t.note&&t.note!==m.note)m.bankNote=t.note;
           if(fuzzy){fuzzyN++;if(Math.abs(m.amt-t.amt)>=0.005){fixedAmt++;m.hand={amt:m.amt,date:m.date};}} // 手记和银行有出入：以银行为准，原手记数字留着
           if(m.acc!==t.acc){
             const old=accById(m.acc);old.init=round2((+old.init||0)+(m.type==='exp'?-m.amt:m.amt)); // 历史账户余额保持不变
@@ -980,7 +977,7 @@ $('#fileIn').onchange=async e=>{
           if(c.length){take(c[0],t,true);return false}
           return true;
         });
-        if(!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你记过的对上了（不重复加${fuzzyN?`；其中 ${fuzzyN} 笔是金额或日期有小出入、按近似对上的，${fixedAmt} 笔金额已改成银行实际扣的`:''}）`:''}。确定导入？`)){S=JSON.parse(snapshot);return}
+        if(!silent&&!confirm(`${j.title||'合并导入'}：共 ${j.tx.length} 笔，新的 ${add.length} 笔${matched?`，另有 ${matched} 笔和你记过的对上了（不重复加${fuzzyN?`；其中 ${fuzzyN} 笔是金额或日期有小出入、按近似对上的，${fixedAmt} 笔金额已改成银行实际扣的`:''}）`:''}。确定导入？`)){S=JSON.parse(snapshot);return -1}
         for(const a of j.accounts)if(!accById(a.id))S.accounts.push(a);
         for(const ty of ['exp','inc'])for(const c of (j.cats&&j.cats[ty])||[])if(!catById(ty,c.id))S.cats[ty].splice(Math.max(0,S.cats[ty].length-1),0,c);
         for(const t of add){
@@ -1005,8 +1002,16 @@ $('#fileIn').onchange=async e=>{
           else recMsg+=`，${a.name}余额对上了`;
           S.settings.lastReconcile[aid]=b.date||today();S.settings.lastReconcileAt=Date.now();
         }
-        save();tab='home';render();toast('已导入 '+add.length+' 笔'+recMsg);return;
-      }
+        save();if(!silent){tab='home';render();toast('已导入 '+add.length+' 笔'+recMsg)}
+        return {n:add.length,adj:/校准/.test(recMsg),msg:recMsg};
+}
+let fileMode='';
+function pickFile(mode){fileMode=mode;const f=$('#fileIn');f.value='';f.click()}
+$('#fileIn').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(fileMode==='restore'){
+    try{const j=JSON.parse(await f.text());if(!j.accounts||!j.tx)throw new Error('不是两地账本的备份');
+      if(j.merge){mergePack(j);return}
       if(!confirm(`备份里有 ${j.tx.length} 笔、${j.accounts.length} 个账户。恢复会覆盖现在的数据（现在 ${S.tx.length} 笔），确定？`))return;
       S=Object.assign(freshState(),j);save();render();toast('已恢复');
     }catch(err){toast('恢复失败：'+err.message)}
@@ -1253,7 +1258,56 @@ function pullNotifs(){
   save();render();
   if(n)toast('从付款通知自动记了 '+n+' 笔，点明细里的「通知」可以改');
 }
-window.onNativeResume=pullNotifs;
+window.onNativeResume=()=>{pullNotifs();syncBank(false)};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!window.LiangdiNative)syncBank(false)});
+
+/* ============ 银行同步 ============ */
+// 电脑每天拉 Sparkasse/PayPal 流水，加密后放到网站 sync/；App 用口令解密、自动合并（同一笔不会重复）
+let syncBusy=false;
+async function decryptSync(e,key){
+  const b64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(key.trim()),'PBKDF2',false,['deriveKey']);
+  const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(e.salt),iterations:e.iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(e.iv)},k,b64(e.ct));
+  return JSON.parse(await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+function setSyncKey(){
+  const x=prompt('输入银行同步口令（电脑上 Claude 给你的那串，只需输一次）',S.settings.syncKey||'');
+  if(x===null)return;S.settings.syncKey=x.trim();S.settings.syncAt=null;save();render();if(x.trim())syncBank(true);
+}
+async function syncBank(manual){
+  const st=S.settings;
+  if(!st.syncKey){if(manual)setSyncKey();return}
+  if(syncBusy)return;
+  if(!manual&&st.syncCheckAt&&Date.now()-st.syncCheckAt<20*60e3)return;
+  syncBusy=true;
+  try{
+    if(manual)toast('正在同步…');
+    const m=await fetch('./sync/meta.json?t='+Date.now(),{cache:'no-store'});
+    if(!m.ok)throw new Error('电脑还没上传过同步文件');
+    const meta=await m.json();
+    st.syncCheckAt=Date.now();
+    if(meta.at===st.syncAt){save();if(manual)toast('已经是最新的（银行数据 '+meta.label+'）');return}
+    const r=await fetch('./sync/latest.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('同步文件下载失败');
+    const e=await r.json();
+    const packs=await decryptSync(e,st.syncKey);
+    st.syncDone=st.syncDone||[];
+    let n=0,adj=false;
+    for(const pk of packs){
+      if(pk.once&&st.syncDone.includes(pk.key))continue;
+      // 一次性的包（历史、国内账单、账户设置）：账户已经对过余额的，不再拿旧余额去校准
+      if(pk.once&&pk.data.balances){const bs=st.bankSynced||{},am=st.accMap||{};for(const k of Object.keys(pk.data.balances))if(bs[am[k]||k])delete pk.data.balances[k]}
+      const res=mergePack(pk.data,true);
+      if(res===-1){toast('同步取消了');return}
+      n+=res.n;adj=adj||res.adj;
+      if(pk.once)st.syncDone.push(pk.key);
+    }
+    st.syncAt=meta.at;st.syncLabel=meta.label;save();render();
+    if(manual||n||adj)toast(n?`同步了 ${n} 笔新流水（银行数据 ${meta.label}）`:`没有新流水（银行数据 ${meta.label}）`);
+  }catch(err){if(manual)toast('同步失败：'+(err.name==='OperationError'?'口令不对，在「更多 → 银行同步」里重输':err.message))}
+  finally{syncBusy=false}
+}
 function openAuto(){
   const on=window.LiangdiNative&&LiangdiNative.hasNotifAccess();
   const log=(S.notifLog||[]).slice(0,30);
@@ -1299,6 +1353,7 @@ $('#searchBtn').onclick=()=>{searchQ='';render();setTimeout(()=>$('#sq')&&$('#sq
   else if(p.has('add'))openEntry({type:p.get('add')==='inc'?'inc':p.get('add')==='tr'?'tr':'exp'});
   if(p.toString()&&!(p.get('app')==='1'&&[...p.keys()].length===1))history.replaceState(null,'',location.pathname);
   setTimeout(pullNotifs,800);
+  setTimeout(()=>syncBank(false),1500);
   if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
