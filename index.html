@@ -432,9 +432,11 @@ function renderHome(){
     ${budgetHtml}
     ${curMonth===nowK?`<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="chip" id="spendBtn" style="background:rgba(255,255,255,.22);color:#fff;border:0">🛒 这次能花多少</button><button class="chip" id="syncBtn" style="background:rgba(255,255,255,.22);color:#fff;border:0">🔄 同步银行${S.settings.syncLabel?' · '+esc(S.settings.syncLabel):''}</button></div>`:''}
   </div>
+  ${curMonth===nowK&&budget>0?catBudHtml(spendCalc()):''}
   ${rem.map(r=>`<div class="alert"><span>${r.ic}</span><span class="sp">${r.t}</span><button class="chip on" data-go="${r.act}">${r.btn}</button></div>`).join('')}
   ${listHtml(list)}`;
   if($('#spendBtn'))$('#spendBtn').onclick=openSpend;
+  if($('#cbEdit'))$('#cbEdit').onclick=openCatBud;
   if($('#syncBtn'))$('#syncBtn').onclick=()=>syncBank(true);
   $('#pm').onclick=()=>{curMonth=shiftMonth(curMonth,-1);render()};
   $('#nm').onclick=()=>{curMonth=shiftMonth(curMonth,1);render()};
@@ -444,6 +446,42 @@ function renderHome(){
 
 /* ============ 这次能花多少 ============ */
 // 固定开销按「每月平均」从预算里先扣掉；超过 bigLine 的单笔算大件（衣服、机票），默认不占日常，可勾回来
+const CATBUD_DEFAULT=[
+  {name:'吃饭买菜',icon:'🍜',amt:230,cats:['餐饮','买菜超市'],food:true},
+  {name:'朋友 AA',icon:'🧧',amt:35,cats:['人情红包','其他']},
+  {name:'宠物',icon:'🐱',amt:25,cats:['宠物']},
+  {name:'日用药妆',icon:'🧴',amt:25,cats:['日用','医疗','美容']},
+  {name:'游泳运动',icon:'🏊',amt:20,cats:['运动健身','娱乐']},
+  {name:'买东西',icon:'🛍️',amt:15,cats:['购物']},
+  {name:'交通',icon:'🚇',amt:10,cats:['交通','旅行']},
+  {name:'机动',icon:'🎲',amt:19,cats:[],rest:true}
+];
+function catBudHtml(c){
+  const b=S.settings.base;
+  return `<div class="card" style="padding:12px 14px;margin:10px 0"><div class="row" style="margin-bottom:6px"><b class="sp">本月分类预算</b><button class="chip" id="cbEdit">调整</button></div>
+  ${c.groups.map(g=>{const p=g.amt>0?Math.min(1,g.spent/g.amt):1;const over=g.rest<0;
+    return `<div style="margin:7px 0"><div class="row small"><span class="sp">${g.icon||''} ${esc(g.name)}</span><span class="num ${over?'exp':''}">${over?'超 '+fmt(-g.rest,b):'剩 '+fmt(g.rest,b)}</span><span class="muted num" style="margin-left:6px">/ ${fmt(+g.amt||0,b)}</span></div>
+    <div class="bar" style="background:var(--line);height:6px;margin-top:4px"><i style="width:${p*100}%;background:${over?'var(--exp)':p>0.8?'#e0a030':'var(--brand)'}"></i></div>
+    ${g.food&&!over?`<div class="small muted" style="margin-top:2px">这周还能花约 ${fmt(Math.min(g.perWeek,g.rest),b)}</div>`:''}</div>`}).join('')}
+  </div>`;
+}
+function openCatBud(){
+  const st=S.settings;spendCalc();const b=st.base;
+  const all=S.cats.exp.map(c=>c.name);
+  const draw=()=>{
+    const sum=st.catBud.reduce((a,g)=>a+(+g.amt||0),0);const daily=Math.max(0,(+st.budget||0)-(st.fixed||[]).reduce((a,f)=>a+(+f.amt||0),0));
+    openSheet(`<div class="grab"></div><b style="font-size:17px">分类预算</b>
+    <div class="small muted" style="margin:4px 0 8px">每月日常 ${fmt(daily,b)}（总预算减固定开销），现在分了 ${fmt(sum,b)}${Math.abs(sum-daily)>=0.5?`，<b style="color:${sum>daily?'var(--exp)':'inherit'}">${sum>daily?'多分了 '+fmt(sum-daily,b):'还有 '+fmt(daily-sum,b)+' 没分'}</b>`:''}。点分类名切换归属；没归进任何组的算「机动」。</div>
+    ${st.catBud.map((g,i)=>`<div class="card" style="padding:10px 12px;margin:8px 0"><div class="row" style="gap:8px"><b class="sp">${g.icon||''} ${esc(g.name)}</b><input class="f num" style="width:90px;text-align:right" inputmode="decimal" data-amt="${i}" value="${g.amt}"></div>
+      ${g.rest?'<div class="small muted" style="margin-top:4px">其他所有分类</div>':`<div class="row" style="gap:5px;flex-wrap:wrap;margin-top:6px">${all.map(n=>`<button class="chip ${g.cats.includes(n)?'on':''}" data-g="${i}" data-c="${esc(n)}" style="font-size:12px;padding:3px 8px">${esc(n)}</button>`).join('')}</div>`}</div>`).join('')}
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn ghost" id="cbReset" style="flex:1">恢复建议值</button><button class="btn" id="cbOk" style="flex:1">完成</button></div>`);
+    $$('[data-amt]').forEach(x=>x.onchange=()=>{st.catBud[+x.dataset.amt].amt=evalExpr(x.value)||0;save();draw()});
+    $$('[data-g]').forEach(x=>x.onclick=()=>{const g=st.catBud[+x.dataset.g],n=x.dataset.c;if(g.cats.includes(n))g.cats=g.cats.filter(y=>y!==n);else{st.catBud.forEach(o=>o.cats=o.cats.filter(y=>y!==n));g.cats.push(n)}save();draw()});
+    $('#cbReset').onclick=()=>{if(!confirm('恢复成建议的分类预算？'))return;st.catBud=CATBUD_DEFAULT.map(g=>({...g,cats:[...g.cats]}));save();draw()};
+    $('#cbOk').onclick=()=>{closeSheet();render()};
+  };
+  draw();
+}
 const FIXED_DEFAULT=[{kw:'Studentenwerk',amt:401.5,name:'房租'},{kw:'Techniker',amt:146.29,name:'TK 医保'},{kw:'Deutsche Allgemeine',amt:34.9,name:'宠物保险'},{kw:'RSG',amt:19.9,name:'健身'},{kw:'Rundfunk',amt:18.36,name:'广播费（每季 55.08）'}];
 function spendCalc(){
   const st=S.settings;
@@ -462,7 +500,13 @@ function spendCalc(){
   const cny=exp.filter(t=>t.cur==='CNY').reduce((a,t)=>a+t.amt,0);
   const d=new Date();const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();const left=dim-d.getDate()+1;
   const rest=daily-used;
-  return {budget,fixedSum,daily,used,rest,left,perDay:Math.max(0,rest/left),big,cny,cnyBud,bigLine};
+  // 分类预算：按分类名归组，没归进任何组的算「机动」
+  if(!st.catBud)st.catBud=CATBUD_DEFAULT.map(g=>({...g,cats:[...g.cats]}));
+  const counted=eur.filter(t=>inBase(t)<bigLine||st.bigIncl.includes(t.id));
+  const gOf=t=>{const n=(catById('exp',t.cat)||{}).name||'';const g=st.catBud.find(g=>g.cats.includes(n));return g||st.catBud.find(g=>g.rest)};
+  const weeksLeft=Math.max(1,left/7);
+  const groups=st.catBud.map(g=>{const sp=counted.filter(t=>gOf(t)===g).reduce((a,t)=>a+inBase(t),0);const r=(+g.amt||0)-sp;return {...g,spent:sp,rest:r,perDay:Math.max(0,r/left),perWeek:Math.max(0,r/weeksLeft)}});
+  return {budget,fixedSum,daily,used,rest,left,perDay:Math.max(0,rest/left),big,cny,cnyBud,bigLine,groups};
 }
 function openSpend(){
   const b=S.settings.base;
@@ -474,7 +518,8 @@ function openSpend(){
   const draw=()=>{
     const c=spendCalc();
     days=Math.max(1,Math.min(days,c.left));
-    const sug=Math.max(0,Math.min(c.rest,c.perDay*days));
+    const food=c.groups.find(g=>g.food);
+    const sug=Math.max(0,food?Math.min(food.rest,c.rest,food.perDay*days):Math.min(c.rest,c.perDay*days));
     const tight=c.rest<=0?'本月日常钱已经花完了，这次只买必需的。':c.perDay<5?'有点紧，挑便宜的买。':c.perDay<12?'正常买就行，别加零食和大包装囤货。':'比较宽裕。';
     openSheet(`<div class="grab"></div><b style="font-size:17px">🛒 这次能花多少</b>
     <div class="sum" style="margin:10px 0">
@@ -484,6 +529,7 @@ function openSpend(){
     </div>
     <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><span class="small muted">买几天的量：</span>${[1,3,5,7,10,14].map(n=>`<button class="chip ${n===days?'on':''}" data-days="${n}">${n} 天</button>`).join('')}</div>
     <div class="small" style="line-height:1.9">
+      ${food?`吃饭买菜本月还剩 <b class="num">${fmt(food.rest,b)}</b>（预算 ${fmt(+food.amt,b)}），平均每天 <b class="num">${fmt(food.perDay,b)}</b><br>`:''}
       本月日常还剩 <b class="num">${fmt(c.rest,b)}</b>，剩 ${c.left} 天，平均每天 <b class="num">${fmt(c.perDay,b)}</b><br>
       <span class="muted">算法：总预算 ${fmt(c.budget,b)} − 固定开销 ${fmt(c.fixedSum,b)} = 日常 ${fmt(c.daily,b)}；本月日常已花 ${fmt(c.used,b)}（只算欧元，不含固定开销和大件）</span><br>
       ${c.cny?`人民币本月已花 <b class="num">${fmt(c.cny,'CNY')}</b>（计划 ≤ ${fmt(c.cnyBud,'CNY')}）<br>`:''}
@@ -782,6 +828,7 @@ function renderMore(){
   <div class="card menu">
     <button class="item" id="mImp"><span>📥</span><span class="sp">导入账单<div class="small muted" style="font-weight:400">支付宝 / 微信 / 德国银行 CSV / Wise，自动去重和分类</div></span><span class="muted">›</span></button>
     <button class="item" id="mRec"><span>🔁</span><span class="sp">周期账单<div class="small muted" style="font-weight:400">房租、话费、Deutschlandticket、会员，到日子自动记</div></span><span class="muted">${S.recur.length||''} ›</span></button>
+    <button class="item" id="mCatBud"><span>📊</span><span class="sp">分类预算<div class="small muted" style="font-weight:400">吃饭买菜、朋友 AA、宠物……每类每月多少</div></span><span class="muted">›</span></button>
     <button class="item" id="mBud"><span>🎯</span><span class="sp">每月预算</span><span class="muted">${st.budget?fmt(+st.budget,st.base):'未设'} ›</span></button>
     <button class="item" id="mCat"><span>🏷️</span><span class="sp">分类管理</span><span class="muted">›</span></button>
   </div>
@@ -801,6 +848,7 @@ function renderMore(){
   <div class="muted small" style="text-align:center;margin:16px 0">两地账本 · 共 ${S.tx.length} 笔 · 数据存在本机浏览器<br><button id="mWipe" class="small" style="color:var(--exp);margin-top:8px">清空所有数据</button></div>`;
   $('#mImp').onclick=()=>pickFile('import');
   $('#mRec').onclick=openRecurList;
+  $('#mCatBud').onclick=()=>{if(!(+st.budget>0)){toast('先设每月预算');return}openCatBud()};
   $('#mBud').onclick=()=>{const x=prompt('每月预算（'+st.base+'，0 表示不设）',st.budget||'');if(x===null)return;st.budget=evalExpr(x);save();render()};
   $('#mCat').onclick=openCats;
   $('#mBase').onclick=()=>{st.base=st.base==='EUR'?'CNY':'EUR';save();render();toast('统计改按 '+CURS[st.base].name+' 折合')};
