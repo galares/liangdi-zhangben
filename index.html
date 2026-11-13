@@ -413,7 +413,11 @@ function renderHome(){
   const budget=+S.settings.budget||0;
   const nowK=monthKey(today());
   let budgetHtml='';
-  if(budget>0){
+  if(budget>0&&curMonth===nowK){
+    // 当月只看「日常」：总预算减掉固定开销后的那部分；固定开销、≥€150 大件、人民币支出不占日常
+    const c=spendCalc();const p=c.daily>0?Math.min(1,c.used/c.daily):1;const other=Math.max(0,e-c.used);
+    budgetHtml=`<div class="bar"><i style="width:${p*100}%;${c.rest<0?'background:#ffd2c8':''}"></i></div><div class="small" style="margin-top:5px;opacity:.9">日常 ${fmt(c.daily,b)}，${c.rest<0?'已超 '+fmt(-c.rest,b):'还剩 '+fmt(c.rest,b)}，剩 ${c.left} 天，每天可花 ${fmt(c.perDay,b)}</div><div class="small" style="opacity:.7;margin-top:2px">本月支出 ${fmt(e,b)} 里，另有 ${fmt(other,b)} 是房租等固定开销、大件和人民币支出，不占日常</div>`;
+  }else if(budget>0){
     const p=Math.min(1,e/budget);
     let extra='';
     if(curMonth===nowK){const d=new Date();const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();const left=dim-d.getDate()+1;extra=`，剩 ${left} 天，扣掉固定开销每天可花 ${fmt(spendCalc().perDay,b)}`}
